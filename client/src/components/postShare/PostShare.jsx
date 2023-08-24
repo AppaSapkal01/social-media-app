@@ -10,11 +10,12 @@ import { useDispatch, useSelector } from "react-redux";
 import { uploadImage, uploadPost } from "../../actions/uploadAction";
 
 const PostShare = () => {
+  const loading = useSelector((state) => state.postReducer.uploading);
   const [image, setImage] = useState(null);
   const imageRef = useRef();
   const { user } = useSelector((state) => state.authReducer.authData);
   const desc = useRef();
-  const dispatch = useDispatch()
+  const dispatch = useDispatch();
   const onImageChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       let img = e.target.files[0];
@@ -22,12 +23,17 @@ const PostShare = () => {
     }
   };
 
+  const reset = () => {
+    setImage(null);
+    desc.current.value = ""
+  }
+
   const handleSubmit = (e) => {
     e.preventDefault();
 
     const newPost = {
       userId: user._id,
-      desc: desc.current.value
+      desc: desc.current.value,
     };
 
     if (image) {
@@ -38,19 +44,25 @@ const PostShare = () => {
       newPost.image = filename;
       console.log(newPost);
       try {
-        dispatch(uploadImage(data))
+        dispatch(uploadImage(data));
       } catch (error) {
-        console.log(error)
+        console.log(error);
       }
     }
-    dispatch(uploadPost(newPost))
+    dispatch(uploadPost(newPost));
+    reset();
   };
   return (
     <>
       <div className="PostShare">
         <img src={ProfileImage} alt="" />
         <div>
-          <input ref={desc} required type="text" placeholder="What's happening" />
+          <input
+            ref={desc}
+            required
+            type="text"
+            placeholder="What's happening"
+          />
           <div className="postOptions">
             <div
               className="option"
@@ -72,8 +84,12 @@ const PostShare = () => {
               <UilSchedule />
               Schedule
             </div>
-            <button className="button ps-button" onClick={handleSubmit}>
-              Share
+            <button
+              className="button ps-button"
+              onClick={handleSubmit}
+              disabled={loading}
+            >
+              {loading ? "Uploading..." : "Share"}
             </button>
             <div style={{ display: "none" }}>
               <input
