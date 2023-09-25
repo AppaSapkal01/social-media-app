@@ -1,5 +1,21 @@
 import UserModel from "../Models/userModel.js";
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+
+// get all users 
+export const getAllUsers = async (req, res) => {
+    try {
+        let users = await UserModel.find();
+
+        users = users.map((user) => {
+            const {password, ...otherDetails} = user._doc;
+            return otherDetails
+        })
+        res.status(200).json(users)
+    } catch (error) {
+        res.status(500).json(error)
+    }
+}
 
 // get a User
 export const getUser = async (req, res) => {
@@ -23,9 +39,9 @@ export const getUser = async (req, res) => {
 export const updateUser = async (req, res) => {
     const id = req.params.id;
 
-    const { currentUserId, currentUserAdminStatus, password } = req.body;
+    const { _id, currentUserAdminStatus, password } = req.body;
 
-    if (id === currentUserId || currentUserAdminStatus) {
+    if (id === _id) {
         try {
 
             if (password) {
@@ -33,8 +49,16 @@ export const updateUser = async (req, res) => {
                 req.body.password = await bcrypt.hash(password, salt);
             }
 
-            const user = await UserModel.findByIdAndUpdate(id, req.body, { new: true });
-            res.status(200).json(user);
+            const user = await UserModel.findByIdAndUpdate(id, req.body, {
+                new: true
+            });
+
+            const token = jwt.sign(
+                {username: user.username, id: user._id},
+                process.env.JWT_KEY,
+                {expiresIn: "1h"}
+            )
+            res.status(200).json({user, token});
         } catch (error) {
             res.status(500).json(error);
         }
@@ -66,10 +90,10 @@ export const deleteUser = async (req, res) => {
 export const followUser = async (req, res) => {
     const id = req.params.id;
 
-    const { currentUserId } = req.body;
+    const { _id } = req.body;
 
     // this condition check, if user is trying to follow himself. i.e not possible.
-    if (currentUserId === id) {
+    if (_id === id) {
         res.status(403).json("Action forbidden")
     } else {
         try {
@@ -78,15 +102,15 @@ export const followUser = async (req, res) => {
             const followUser = await UserModel.findById(id);
 
             // this is the user who wants to follow other user
-            const followingUser = await UserModel.findById(currentUserId);
+            const followingUser = await UserModel.findById(_id);
 
             // (this if condition checks whether user we want to follow,
             // in its following we shouldn't be present. 
             // i.e we can't follow a person whom we are already following)
-            if (!followUser.followers.includes(currentUserId)) {
+            if (!followUser.followers.includes(_id)) {
 
                 // here we are pushing follower into the person's followers list.
-                await followUser.updateOne({ $push: { followers: currentUserId } });
+                await followUser.updateOne({ $push: { followers: _id } });
 
                 // here when user follows other user, we are updating his following list.
                 await followingUser.updateOne({ $push: { following: id } });
@@ -106,10 +130,10 @@ export const followUser = async (req, res) => {
 export const unfollowUser = async (req, res) => {
     const id = req.params.id;
 
-    const { currentUserId } = req.body;
+    const { _id } = req.body;
 
     // this condition check, if user is trying to unfollow himself. i.e not possible.
-    if (currentUserId === id) {
+    if (_id === id) {
         res.status(403).json("Action forbidden")
     } else {
         try {
@@ -118,15 +142,15 @@ export const unfollowUser = async (req, res) => {
             const followUser = await UserModel.findById(id);
 
             // this is the user who wants to unfollow other user
-            const followingUser = await UserModel.findById(currentUserId);
+            const followingUser = await UserModel.findById(_id);
 
             // (this if condition checks whether user we want to unfollow,
             // in its following we should be present. 
             // i.e we can't unfollow a person whom we aren't following)
-            if (followUser.followers.includes(currentUserId)) {
+            if (followUser.followers.includes(_id)) {
 
                 // here we are pulling(removing) follower from the person's followers list.
-                await followUser.updateOne({ $pull: { followers: currentUserId } });
+                await followUser.updateOne({ $pull: { followers: _id } });
 
                 // here when user unfollows other user, we are updating his following list (reducing following count).
                 await followingUser.updateOne({ $pull: { following: id } });
